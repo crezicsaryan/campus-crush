@@ -7,18 +7,16 @@ import './App.css';
 import { AuthProvider, useAuth } from './AuthContext';
 import Onboarding from './Onboarding';
 import Dashboard from './Dashboard'; 
-import AdminPanel from './AdminPanel'; // <--- NEW IMPORT
+import AdminPanel from './AdminPanel';
 
-// --- PROTECTED ROUTE ---
+// --- 1. PROTECTED ROUTE (Keeps strangers out) ---
 const ProtectedRoute = ({ children }) => {
-  const { currentUser, loading } = useAuth(); // Get loading status
+  const { currentUser, loading } = useAuth();
   
-  // 1. If Firebase is still checking, show a spinner (prevent kick-out)
   if (loading) {
      return <div className="preloader-container">Checking Login...</div>;
   }
 
-  // 2. Only redirect IF loading is finished AND there is no user
   if (!currentUser) {
     return <Navigate to="/" />;
   }
@@ -26,32 +24,22 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// --- LANDING PAGE COMPONENT ---
+// --- 2. LANDING PAGE COMPONENT (Your Design) ---
 const LandingPage = () => {
   const { googleSignIn, currentUser } = useAuth();
-  const navigate = useNavigate();
-
-  // FIX: If user is already logged in, start loading as FALSE to skip animation
-  const [loading, setLoading] = useState(!currentUser); 
+  // Note: We removed 'navigate' because RootRoute handles redirection now.
+  
+  // Start loading only if we are NOT logged in (Pure UI animation)
+  const [loading, setLoading] = useState(true); 
   const [activeModal, setActiveModal] = useState(null);
   const modalRef = useRef(null);
   const [error, setError] = useState('');
 
-  // 1. AUTO-REDIRECT LISTENER
+  // Preloader Timer (Just for visual effect now)
   useEffect(() => {
-    if (currentUser) {
-      setLoading(false); // Stop preloader
-      navigate('/onboarding');
-    }
-  }, [currentUser, navigate]);
-
-  // Preloader Timer (Only runs if user is NOT logged in)
-  useEffect(() => {
-    if (!currentUser) {
-      const timer = setTimeout(() => setLoading(false), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [currentUser]);
+     const timer = setTimeout(() => setLoading(false), 1000);
+     return () => clearTimeout(timer);
+  }, []);
 
   // GSAP Animation for Modals
   useEffect(() => {
@@ -64,12 +52,12 @@ const LandingPage = () => {
     setError('');
   }, [activeModal]);
 
-  // Google Login Handler (Popup)
+  // Google Login Handler
   const handleGoogleAuth = async () => {
     try {
       setError('');
       await googleSignIn();
-      // The useEffect above will detect the login and redirect automatically
+      // No need to navigate manually; The RootRoute (below) will detect the change and auto-redirect.
     } catch (err) {
       console.error(err);
       setError('Google Login Failed: ' + err.message);
@@ -189,13 +177,36 @@ const LandingPage = () => {
   );
 };
 
-// --- MAIN APP COMPONENT ---
+// --- 3. ROOT ROUTE (The Traffic Cop - NEW FIX) ---
+const RootRoute = () => {
+  const { currentUser, loading } = useAuth();
+
+  // If Firebase is still thinking, show a loading heart
+  if (loading) {
+    return (
+      <div style={{height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#fff0f5'}}>
+        <div className="heart-icon-big" style={{fontSize: '50px'}}>❤️</div>
+      </div>
+    );
+  }
+
+  // If LOGGED IN -> Go to Dashboard
+  if (currentUser) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If NOT LOGGED IN -> Show the Landing Page
+  return <LandingPage />;
+};
+
+// --- 4. MAIN APP COMPONENT ---
 function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          {/* Smart Traffic Cop at the Root */}
+          <Route path="/" element={<RootRoute />} />
           
           <Route path="/onboarding" element={
             <ProtectedRoute>
@@ -209,7 +220,6 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* --- ADDED ADMIN ROUTE --- */}
           <Route path="/admin" element={
             <ProtectedRoute>
               <AdminPanel />
