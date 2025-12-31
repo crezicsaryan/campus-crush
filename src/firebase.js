@@ -1,24 +1,26 @@
 // src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore"; // <--- 1. NEW IMPORT
+import { getFirestore } from "firebase/firestore"; 
 
+// Use environment variables (Secure)
 const firebaseConfig = {
-  apiKey: "AIzaSyCNMPrbG6GkkwShZGRC9Y7LcS9DGek5SpI",
-  authDomain: "collegecrush-42b67.firebaseapp.com",
-  projectId: "collegecrush-42b67",
-  storageBucket: "collegecrush-42b67.firebasestorage.app",
-  messagingSenderId: "450431922710",
-  appId: "1:450431922710:web:8ba74bfeebc23b6ec17b37",
-  measurementId: "G-1JNMTP4B8R"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID,
+  measurementId: import.meta.env.VITE_MEASUREMENT_ID
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 // Exports used by the rest of your app
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app); // <--- 2. THIS WAS MISSING
+export const db = getFirestore(app);
 
 
 
