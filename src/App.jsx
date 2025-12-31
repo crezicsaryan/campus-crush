@@ -10,18 +10,31 @@ import Dashboard from './Dashboard';
 import AdminPanel from './AdminPanel';
 
 // --- 1. PROTECTED ROUTE (Keeps strangers out) ---
-const ProtectedRoute = ({ children }) => {
-  const { currentUser, loading } = useAuth();
-  
+// --- 3. ROOT ROUTE (The Traffic Cop - UPDATED) ---
+const RootRoute = () => {
+  const { currentUser, userProfile, loading } = useAuth(); // Get userProfile too
+
+  // 1. Loading State
   if (loading) {
-     return <div className="preloader-container">Checking Login...</div>;
+    return (
+      <div style={{height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#fff0f5'}}>
+        <div className="heart-icon-big" style={{fontSize: '50px'}}>❤️</div>
+      </div>
+    );
   }
 
-  if (!currentUser) {
-    return <Navigate to="/" />;
+  // 2. IF LOGGED IN: Check if Profile is Complete
+  if (currentUser) {
+    // If they have a "branch", they completed onboarding -> Dashboard
+    if (userProfile?.branch) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    // If no branch, they are new -> Onboarding
+    return <Navigate to="/onboarding" replace />;
   }
-  
-  return children;
+
+  // 3. IF NOT LOGGED IN: Show Landing Page
+  return <LandingPage />;
 };
 
 // --- 2. LANDING PAGE COMPONENT (Your Design) ---

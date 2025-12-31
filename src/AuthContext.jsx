@@ -11,31 +11,38 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading] = useState(true); // <--- NEW: Loading State
+  const [userProfile, setUserProfile] = useState(null); // <--- NEW: Stores DB Data
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // 1. Set the user immediately so the UI reacts fast
         setCurrentUser(user);
         
-        // 2. Check if user exists in Firestore, if not create basic doc
+        // Check Firestore for profile data
         const userRef = doc(db, "users", user.uid);
         const docSnap = await getDoc(userRef);
         
-        if (!docSnap.exists()) {
-          await setDoc(userRef, {
+        if (docSnap.exists()) {
+          // Save the actual database data (branch, year, bio, etc.)
+          setUserProfile(docSnap.data());
+        } else {
+          // New user: Create basic doc, but profile is incomplete
+          const newUserData = {
             name: user.displayName,
             email: user.email,
             photoURL: user.photoURL,
             createdAt: serverTimestamp(),
             uid: user.uid
-          }, { merge: true });
+          };
+          await setDoc(userRef, newUserData);
+          setUserProfile(newUserData); // Branch/Year will be missing here
         }
       } else {
         setCurrentUser(null);
+        setUserProfile(null);
       }
-      setLoading(false); // <--- STOP LOADING once Firebase replies
+      setLoading(false);
     });
 
     return unsubscribe;
@@ -51,15 +58,19 @@ export function AuthProvider({ children }) {
 
   const value = {
     currentUser,
+    userProfile, // <--- Export this so App.jsx can use it
     googleSignIn,
     logout,
-    loading // <--- Export this so App.jsx can use it
+    loading
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {/* If still loading, show NOTHING (or a spinner) instead of children */}
-      {loading ? <div style={{height: "100vh", display:"flex", justifyContent:"center", alignItems:"center"}}>Loading...</div> : children}
+      {loading ? (
+        <div style={{height: "100vh", display:"flex", justifyContent:"center", alignItems:"center"}}>
+          Loading...
+        </div>
+      ) : children}
     </AuthContext.Provider>
   );
 }
