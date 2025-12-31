@@ -91,7 +91,7 @@ const Dashboard = () => {
     setTimeout(() => setNotification(null), 4000); 
   };
 
-  // --- 2. FETCH PROFILES ---
+  // --- 2. FETCH PROFILES (FIXED) ---
   useEffect(() => {
     const fetchCards = async () => {
       if (!currentUser) return;
@@ -99,11 +99,14 @@ const Dashboard = () => {
       const swipesSnapshot = await getDocs(collection(db, 'users', currentUser.uid, 'swipes'));
       const swipedIds = new Set(swipesSnapshot.docs.map(doc => doc.id));
       const feed = [];
+      
       querySnapshot.forEach(doc => {
+        // FIX: Ensure we manually add the UID so the key works later
         if (doc.id !== currentUser.uid && !swipedIds.has(doc.id)) {
-          feed.push(doc.data());
+          feed.push({ ...doc.data(), uid: doc.id }); 
         }
       });
+      
       setProfiles(feed);
       updateCurrentIndex(feed.length - 1); 
     };
@@ -146,7 +149,6 @@ const Dashboard = () => {
         const otherUserId = matchData.users.find(id => id !== currentUser.uid);
         
         // CHECK UNREAD STATUS
-        // If last message was NOT from me, and isRead is false (or undefined)
         const isUnread = matchData.lastSenderId && 
                          matchData.lastSenderId !== currentUser.uid && 
                          matchData.isRead === false;
@@ -161,13 +163,13 @@ const Dashboard = () => {
                      ...userSnap.data(),
                      lastMessage: matchData.lastMessage || "Tap to chat",
                      lastMessageTime: matchData.lastMessageTime,
-                     isUnread: isUnread // Pass this to UI
+                     isUnread: isUnread 
                  });
              }
         }
       }
       setMatches(matchesData);
-      setTotalUnread(unreadCounter); // Update global counter
+      setTotalUnread(unreadCounter); 
     });
 
     return () => unsubMatches();
@@ -189,7 +191,7 @@ const Dashboard = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentChatUser]);
 
-  // --- 5. SEND MESSAGE (UPDATED: SET READ=FALSE) ---
+  // --- 5. SEND MESSAGE ---
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -208,12 +210,11 @@ const Dashboard = () => {
         timestamp: timestamp
       });
 
-      // Update Match Doc: Set isRead to FALSE because the receiver hasn't seen it yet
       await updateDoc(doc(db, 'matches', matchId), {
           lastMessage: textToSend,
           lastSenderId: currentUser.uid,
           lastMessageTime: timestamp,
-          isRead: false // <--- NEW: Mark as unread for the other person
+          isRead: false 
       });
 
     } catch (error) {
@@ -221,12 +222,11 @@ const Dashboard = () => {
     }
   };
 
-  // --- 6. OPEN CHAT (UPDATED: MARK READ) ---
+  // --- 6. OPEN CHAT ---
   const openChat = async (user) => {
     setCurrentChatUser(user);
     setActiveTab('chat');
 
-    // If the last message was from THEM, mark it as read now
     if (user.isUnread) {
         const matchId = [currentUser.uid, user.id].sort().join('_');
         try {
@@ -249,9 +249,9 @@ const Dashboard = () => {
       timestamp: serverTimestamp()
     });
 
-    if (direction === 'right') {
+    if (direction === 'right' || direction === 'up') {
       const otherUserSwipe = await getDoc(doc(db, 'users', swipedUser.uid, 'swipes', currentUser.uid));
-      if (otherUserSwipe.exists() && otherUserSwipe.data().direction === 'right') {
+      if (otherUserSwipe.exists() && (otherUserSwipe.data().direction === 'right' || otherUserSwipe.data().direction === 'up')) {
         handleMatch(swipedUser);
       } else {
         await addDoc(collection(db, 'users', swipedUser.uid, 'notifications'), {
@@ -271,7 +271,10 @@ const Dashboard = () => {
         setShowHeart(true);
         setTimeout(() => setShowHeart(false), 800);
       }
-      await childRefs[currentIndex].current.swipe(dir);
+      // Safety check to ensure ref exists before swiping
+      if (childRefs[currentIndex] && childRefs[currentIndex].current) {
+        await childRefs[currentIndex].current.swipe(dir);
+      }
     }
   };
 
@@ -358,13 +361,12 @@ const Dashboard = () => {
                <img src={user.photoURL} className="chat-avatar" alt="" />
                <div className="chat-details">
                  <div className="chat-top">
-                    <h4>{user.name}</h4>
-                    {/* OPTIONAL: Show small dot inside the chat item too */}
-                    {user.isUnread && <span className="unread-dot-small"></span>}
+                   <h4>{user.name}</h4>
+                   {user.isUnread && <span className="unread-dot-small"></span>}
                  </div>
                  <p className="chat-preview" style={{
-                    fontWeight: user.isUnread ? '700' : '400', 
-                    color: user.isUnread ? '#000' : '#888'
+                   fontWeight: user.isUnread ? '700' : '400', 
+                   color: user.isUnread ? '#000' : '#888'
                  }}>
                     {user.lastMessage}
                  </p>
@@ -446,7 +448,7 @@ const Dashboard = () => {
                     className='swipe' 
                     key={character.uid} 
                     onSwipe={(dir) => swiped(dir, character, index)} 
-                    preventSwipe={['up', 'down']}
+                    preventSwipe={['down']} // FIX: Removed 'up' so Star button works
                   >
                     <div style={{ backgroundImage: `url(${character.photoURL})` }} className='card'>
                       <div className="card-gradient"></div>
@@ -459,8 +461,10 @@ const Dashboard = () => {
                 ))}
               </div>
               <div className="action-buttons">
+                {/* FIX: Left swipe (X) will now work because refs are fixed */}
                 <button className="action-btn pass" onClick={() => swipe('left')}><X size={30} /></button>
-                <button className="action-btn super"><Star size={24} /></button>
+                {/* FIX: Added onClick to Star button */}
+                <button className="action-btn super" onClick={() => swipe('up')}><Star size={24} /></button>
                 <button className="action-btn like" onClick={() => swipe('right')}><Heart size={30} fill="white" /></button>
               </div>
             </div>
@@ -475,7 +479,6 @@ const Dashboard = () => {
         <div className={`nav-item ${activeTab === 'discover' ? 'active' : ''}`} onClick={() => setActiveTab('discover')}><Flame size={26} /><span>Discover</span></div>
         <div className={`nav-item ${activeTab === 'matches' ? 'active' : ''}`} onClick={() => setActiveTab('matches')}><Heart size={26} /><span>Matches</span></div>
         
-        {/* CHAT TAB WITH NOTIFICATION DOT */}
         <div className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
             <MessageCircle size={26} />
             {totalUnread > 0 && <span className="nav-badge-dot"></span>}
