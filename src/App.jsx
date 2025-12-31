@@ -11,8 +11,18 @@ import AdminPanel from './AdminPanel'; // <--- NEW IMPORT
 
 // --- PROTECTED ROUTE ---
 const ProtectedRoute = ({ children }) => {
-  const { currentUser } = useAuth();
-  if (!currentUser) return <Navigate to="/" />;
+  const { currentUser, loading } = useAuth(); // Get loading status
+  
+  // 1. If Firebase is still checking, show a spinner (prevent kick-out)
+  if (loading) {
+     return <div className="preloader-container">Checking Login...</div>;
+  }
+
+  // 2. Only redirect IF loading is finished AND there is no user
+  if (!currentUser) {
+    return <Navigate to="/" />;
+  }
+  
   return children;
 };
 
