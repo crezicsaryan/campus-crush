@@ -19,6 +19,14 @@ export function AuthProvider({ children }) {
       if (user) {
         setCurrentUser(user);
         
+        // --- MODIFICATION START ---
+        // If the user is Anonymous (Admin), do NOT create a database entry.
+        if (user.isAnonymous) {
+          setLoading(false);
+          return; 
+        }
+        // --- MODIFICATION END ---
+
         // Check Firestore for profile data
         const userRef = doc(db, "users", user.uid);
         const docSnap = await getDoc(userRef);

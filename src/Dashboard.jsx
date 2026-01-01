@@ -100,10 +100,13 @@ const Dashboard = () => {
       const feed = [];
       
       querySnapshot.forEach(doc => {
-        // IMPORTANT: We attach 'uid' here so the buttons can find the card
-        if (doc.id !== currentUser.uid && !swipedIds.has(doc.id)) {
-          feed.push({ ...doc.data(), uid: doc.id }); 
+        const data = doc.data();
+        // --- MODIFICATION START ---
+        // Added check for data.name to prevent empty admin profiles from showing
+        if (doc.id !== currentUser.uid && !swipedIds.has(doc.id) && data.name) {
+          feed.push({ ...data, uid: doc.id }); 
         }
+        // --- MODIFICATION END ---
       });
       
       setProfiles(feed);
