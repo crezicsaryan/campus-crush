@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import TinderCard from 'react-tinder-card';
 import { useAuth } from './AuthContext';
 import { db } from './firebase';
@@ -36,17 +36,12 @@ const Dashboard = () => {
   const messagesEndRef = useRef(null); 
   const chatInputRef = useRef(null); 
 
-  // --- REFS FOR BUTTON SWIPES ---
+  // --- REFS FOR BUTTON SWIPES (FIXED) ---
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef(currentIndex);
-
-  const childRefs = useMemo(
-    () =>
-      Array(profiles.length)
-        .fill(0)
-        .map((i) => React.createRef()),
-    [profiles.length]
-  );
+  
+  // FIX: Use a persistent Ref array instead of useMemo
+  const cardRefs = useRef([]); 
 
   const updateCurrentIndex = (val) => {
     setCurrentIndex(val);
@@ -101,12 +96,10 @@ const Dashboard = () => {
       
       querySnapshot.forEach(doc => {
         const data = doc.data();
-        // --- MODIFICATION START ---
-        // Added check for data.name to prevent empty admin profiles from showing
+        // Prevent empty admin profiles from showing
         if (doc.id !== currentUser.uid && !swipedIds.has(doc.id) && data.name) {
           feed.push({ ...data, uid: doc.id }); 
         }
-        // --- MODIFICATION END ---
       });
       
       setProfiles(feed);
@@ -122,8 +115,6 @@ const Dashboard = () => {
     const q = query(collection(db, 'matches'), where('users', 'array-contains', currentUser.uid));
     
     const unsubMatches = onSnapshot(q, async (snapshot) => {
-      // Handle new messages notification logic here (omitted for brevity, same as before)
-
       const matchesData = [];
       let unreadCounter = 0;
 
@@ -216,7 +207,7 @@ const Dashboard = () => {
     }
   };
 
-  // --- SWIPE LOGIC ---
+  // --- SWIPE LOGIC (FIXED) ---
   const canSwipe = currentIndex >= 0;
 
   const swiped = async (direction, swipedUser, index) => {
@@ -251,9 +242,10 @@ const Dashboard = () => {
         setTimeout(() => setShowHeart(false), 800);
       }
       
-      // TRIGGER THE CARD SWIPE PROGRAMMATICALLY
-      if (childRefs[currentIndex] && childRefs[currentIndex].current) {
-        await childRefs[currentIndex].current.swipe(dir);
+      // FIX: Check if the card ref actually exists before calling .swipe()
+      const card = cardRefs.current[currentIndex];
+      if (card) {
+        await card.swipe(dir);
       }
     }
   };
@@ -403,11 +395,12 @@ const Dashboard = () => {
                 )}
                 {profiles.map((character, index) => (
                   <TinderCard 
-                    ref={childRefs[index]}
+                    // FIX: Direct reference assignment for reliable button clicking
+                    ref={(el) => cardRefs.current[index] = el}
                     className='swipe' 
                     key={character.uid} 
                     onSwipe={(dir) => swiped(dir, character, index)} 
-                    preventSwipe={['up', 'down']} // STAR REMOVED: No 'up' swipe
+                    preventSwipe={['up', 'down']}
                   >
                     <div style={{ backgroundImage: `url(${character.photoURL})` }} className='card'>
                       <div className="card-gradient"></div>
@@ -420,10 +413,9 @@ const Dashboard = () => {
                 ))}
               </div>
               
-              {/* BUTTONS: ONLY CROSS AND HEART */}
+              {/* BUTTONS: Cross and Heart */}
               <div className="action-buttons" style={{justifyContent: 'space-evenly', maxWidth: '300px', margin: '0 auto'}}>
                 <button className="action-btn pass" onClick={() => swipe('left')}><X size={30} /></button>
-                {/* STAR BUTTON REMOVED */}
                 <button className="action-btn like" onClick={() => swipe('right')}><Heart size={30} fill="white" /></button>
               </div>
             </div>
