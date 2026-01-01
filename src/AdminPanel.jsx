@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from './firebase'; // <--- IMPORT AUTH
-import { signInAnonymously } from 'firebase/auth'; // <--- IMPORT SIGN IN
+import { db, auth } from './firebase'; 
+import { signInAnonymously } from 'firebase/auth'; 
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, ShieldAlert, ArrowLeft, Lock, Calendar, User, Key, MessageCircle, Users } from 'lucide-react';
@@ -15,7 +15,7 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('users');
-  const [errorMsg, setErrorMsg] = useState(''); // To show connection errors
+  const [errorMsg, setErrorMsg] = useState(''); 
   
   const [adminUser, setAdminUser] = useState('');
   const [adminPass, setAdminPass] = useState('');
@@ -24,14 +24,13 @@ const AdminPanel = () => {
   const ADMIN_USERNAME = "admin";
   const ADMIN_PASSWORD = "campuscrush2025";
 
-  // Login Handler (UPDATED WITH FIREBASE LOGIN)
+  // Login Handler
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     
     if (adminUser === ADMIN_USERNAME && adminPass === ADMIN_PASSWORD) {
       try {
-        // 1. Sign in Anonymously so Firebase allows us to read data
         await signInAnonymously(auth);
         setIsAuthenticated(true);
       } catch (err) {
@@ -58,7 +57,7 @@ const AdminPanel = () => {
         }));
         setUsers(userList);
 
-        // 2. Fetch Matches (Chats) - REMOVED ORDERBY TO PREVENT INDEX ERRORS
+        // 2. Fetch Matches (Chats)
         const chatsSnap = await getDocs(collection(db, "matches"));
         const chatsList = [];
         
@@ -77,13 +76,13 @@ const AdminPanel = () => {
                 id: d.id,
                 names: names.join(" & "),
                 lastMessage: data.lastMessage || "No messages yet",
-                // Convert timestamp safely
-                time: data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A" 
+                time: data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A",
+                rawTime: data.timestamp ? data.timestamp.seconds : 0
             });
         }
         
-        // Sort in Javascript instead of Firestore to avoid index errors
-        chatsList.sort((a, b) => new Date(b.time) - new Date(a.time));
+        // Sort by time (Newest first)
+        chatsList.sort((a, b) => b.rawTime - a.rawTime);
         
         setChats(chatsList);
 
@@ -96,7 +95,7 @@ const AdminPanel = () => {
     };
 
     fetchData();
-  }, [isAuthenticated]); // Run this when authentication becomes true
+  }, [isAuthenticated]);
 
   const handleDelete = async (userId) => {
     if(window.confirm("Are you sure you want to delete this user? This cannot be undone.")) {
@@ -169,26 +168,40 @@ const AdminPanel = () => {
             </div>
         </div>
         
-        {/* TABS SELECTOR */}
+        {/* TABS SELECTOR - FIXED VISIBILITY */}
         <div className="admin-tabs" style={{display: 'flex', gap: '15px'}}>
             <button 
-                className={`tab-btn ${activeTab === 'users' ? 'active-tab' : ''}`}
                 onClick={() => setActiveTab('users')}
                 style={{
-                    background: activeTab === 'users' ? 'white' : 'rgba(255,255,255,0.2)',
-                    color: activeTab === 'users' ? '#ff4b4b' : 'white',
-                    border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px'
+                    background: activeTab === 'users' ? '#ff4b4b' : '#eee', // Active: Red, Inactive: Light Gray
+                    color: activeTab === 'users' ? 'white' : '#555',       // Active: White, Inactive: Dark Gray
+                    border: 'none', 
+                    padding: '8px 16px', 
+                    borderRadius: '20px', 
+                    cursor: 'pointer', 
+                    fontWeight: 'bold', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    transition: 'all 0.3s ease'
                 }}
             >
                 <Users size={16} /> Users
             </button>
             <button 
-                className={`tab-btn ${activeTab === 'chats' ? 'active-tab' : ''}`}
                 onClick={() => setActiveTab('chats')}
                 style={{
-                    background: activeTab === 'chats' ? 'white' : 'rgba(255,255,255,0.2)',
-                    color: activeTab === 'chats' ? '#ff4b4b' : 'white',
-                    border: 'none', padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px'
+                    background: activeTab === 'chats' ? '#ff4b4b' : '#eee',
+                    color: activeTab === 'chats' ? 'white' : '#555',
+                    border: 'none', 
+                    padding: '8px 16px', 
+                    borderRadius: '20px', 
+                    cursor: 'pointer', 
+                    fontWeight: 'bold', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    transition: 'all 0.3s ease'
                 }}
             >
                 <MessageCircle size={16} /> Live Chats
