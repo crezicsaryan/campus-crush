@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { db } from './firebase';
-import { collection, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { db, auth } from './firebase'; // <--- IMPORT AUTH
+import { signInAnonymously } from 'firebase/auth'; // <--- IMPORT SIGN IN
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, ShieldAlert, ArrowLeft, Lock, Calendar, User, Key, MessageCircle, Users } from 'lucide-react';
 import './App.css';
@@ -10,10 +11,11 @@ const AdminPanel = () => {
   
   // --- STATE ---
   const [users, setUsers] = useState([]);
-  const [chats, setChats] = useState([]); // <--- NEW: Stores chat data
+  const [chats, setChats] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeTab, setActiveTab] = useState('users'); // <--- NEW: Tab state
+  const [activeTab, setActiveTab] = useState('users');
+  const [errorMsg, setErrorMsg] = useState(''); // To show connection errors
   
   const [adminUser, setAdminUser] = useState('');
   const [adminPass, setAdminPass] = useState('');
@@ -22,18 +24,26 @@ const AdminPanel = () => {
   const ADMIN_USERNAME = "admin";
   const ADMIN_PASSWORD = "campuscrush2025";
 
-  // Login Handler
-  const handleLogin = (e) => {
+  // Login Handler (UPDATED WITH FIREBASE LOGIN)
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setErrorMsg('');
+    
     if (adminUser === ADMIN_USERNAME && adminPass === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      // We fetch data immediately after login is successful
+      try {
+        // 1. Sign in Anonymously so Firebase allows us to read data
+        await signInAnonymously(auth);
+        setIsAuthenticated(true);
+      } catch (err) {
+        console.error(err);
+        setErrorMsg("Database Connection Failed. Check Console.");
+      }
     } else {
       alert("⚠️ Access Denied");
     }
   };
 
-  // --- FETCH DATA (USERS & CHATS) ---
+  // --- FETCH DATA ---
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -48,31 +58,38 @@ const AdminPanel = () => {
         }));
         setUsers(userList);
 
-        // 2. Fetch Matches (Chats) - NEW LOGIC
-        const chatsSnap = await getDocs(query(collection(db, "matches"), orderBy("timestamp", "desc")));
+        // 2. Fetch Matches (Chats) - REMOVED ORDERBY TO PREVENT INDEX ERRORS
+        const chatsSnap = await getDocs(collection(db, "matches"));
         const chatsList = [];
         
         for (const d of chatsSnap.docs) {
             const data = d.data();
-            // Fetch names of the two users involved
+            
+            // Find names safely
             let names = [];
             if (data.users && data.users.length === 2) {
-                // Find names from the already fetched userList to save reads
                 const user1 = userList.find(u => u.id === data.users[0])?.name || "Unknown";
                 const user2 = userList.find(u => u.id === data.users[1])?.name || "Unknown";
                 names = [user1, user2];
             }
+            
             chatsList.push({
                 id: d.id,
                 names: names.join(" & "),
                 lastMessage: data.lastMessage || "No messages yet",
-                time: data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A"
+                // Convert timestamp safely
+                time: data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "N/A" 
             });
         }
+        
+        // Sort in Javascript instead of Firestore to avoid index errors
+        chatsList.sort((a, b) => new Date(b.time) - new Date(a.time));
+        
         setChats(chatsList);
 
       } catch (error) {
         console.error("Error fetching data:", error);
+        setErrorMsg("Error fetching data: " + error.message);
       } finally {
         setLoading(false);
       }
@@ -92,7 +109,7 @@ const AdminPanel = () => {
     }
   };
 
-  // --- RENDER: LOGIN SCREEN (YOUR ORIGINAL DESIGN) ---
+  // --- RENDER: LOGIN SCREEN ---
   if (!isAuthenticated) {
     return (
       <div className="admin-login-wrapper">
@@ -103,6 +120,8 @@ const AdminPanel = () => {
           <h2>Admin Portal</h2>
           <p>Secure Access Control</p>
           
+          {errorMsg && <p style={{color: 'red', fontSize:'12px'}}>{errorMsg}</p>}
+
           <form onSubmit={handleLogin} className="admin-form">
             <div className="input-group">
                 <User size={18} className="input-icon" />
@@ -138,10 +157,9 @@ const AdminPanel = () => {
     );
   }
 
-  // --- RENDER: DASHBOARD (UPDATED WITH TABS) ---
+  // --- RENDER: DASHBOARD ---
   return (
     <div className="admin-layout fade-in">
-      {/* Sidebar / Header Area */}
       <header className="admin-topbar">
         <div className="admin-title">
             <div className="title-icon-box"><ShieldAlert color="white" size={24} /></div>
@@ -151,7 +169,7 @@ const AdminPanel = () => {
             </div>
         </div>
         
-        {/* NEW: TABS SELECTOR IN HEADER */}
+        {/* TABS SELECTOR */}
         <div className="admin-tabs" style={{display: 'flex', gap: '15px'}}>
             <button 
                 className={`tab-btn ${activeTab === 'users' ? 'active-tab' : ''}`}
@@ -191,7 +209,7 @@ const AdminPanel = () => {
         <div className="table-card">
             <div className="table-responsive">
             
-            {/* --- TAB 1: USERS TABLE (YOUR ORIGINAL) --- */}
+            {/* --- TAB 1: USERS TABLE --- */}
             {activeTab === 'users' && (
                 <table className="modern-table">
                     <thead>
@@ -206,7 +224,6 @@ const AdminPanel = () => {
                     <tbody>
                     {users.map(user => (
                         <tr key={user.id}>
-                        {/* User Profile */}
                         <td className="col-profile">
                             <img 
                             src={user.photoURL || "https://cdn-icons-png.flaticon.com/512/149/149071.png"} 
@@ -218,8 +235,6 @@ const AdminPanel = () => {
                                 <small>{user.branch}</small>
                             </div>
                         </td>
-
-                        {/* Identity */}
                         <td className="col-identity">
                             <div className="user-identity">
                                 <span className="fw-bold">{user.name}</span>
@@ -229,8 +244,6 @@ const AdminPanel = () => {
                                 </span>
                             </div>
                         </td>
-
-                        {/* Academics */}
                         <td>
                             <div className="academic-info">
                                 <span className="branch-badge">{user.branch}</span>
@@ -241,15 +254,11 @@ const AdminPanel = () => {
                                 </div>
                             </div>
                         </td>
-
-                        {/* Bio */}
                         <td className="col-bio">
                             <div className="bio-box" title={user.bio}>
                                 {user.bio || "No bio provided."}
                             </div>
                         </td>
-
-                        {/* Actions */}
                         <td>
                             <button className="delete-icon-btn" onClick={() => handleDelete(user.id)} title="Delete User">
                                 <Trash2 size={18} />
@@ -261,7 +270,7 @@ const AdminPanel = () => {
                 </table>
             )}
 
-            {/* --- TAB 2: LIVE CHATS TABLE (NEW) --- */}
+            {/* --- TAB 2: LIVE CHATS TABLE --- */}
             {activeTab === 'chats' && (
                 <table className="modern-table">
                     <thead>
@@ -274,7 +283,7 @@ const AdminPanel = () => {
                     </thead>
                     <tbody>
                         {chats.length === 0 ? (
-                             <tr><td colSpan="4" style={{textAlign:'center', padding:'20px'}}>No conversations yet.</td></tr>
+                             <tr><td colSpan="4" style={{textAlign:'center', padding:'20px'}}>No conversations found.</td></tr>
                         ) : (
                             chats.map(chat => (
                                 <tr key={chat.id}>
